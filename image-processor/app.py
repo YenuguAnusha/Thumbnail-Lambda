@@ -39,14 +39,20 @@ def lambda_handler(event, context):
 
         logging.info("Downloaded the image")
 
-             # Create thumbnails for each size
+        width, height = downloaded_image_size(image_path)
+        logging.info("Image width: %d, height: %d", width, height)
+
+        # Create thumbnails for each size
         for size in thumbnail_sizes:
                     # Generate the thumbnail file name
             save_image_path = save_image(size,file_id)
             logging.info("saved in local path "+ save_image_path)
-                    # Create the thumbnail
-            create_thumbnail(image_path, save_image_path, source_key, target_bucket, size)
-            thumbnail_sizes_created.add(size)
+
+            if width > size and height > size:
+
+        # Create the thumbnail
+               create_thumbnail(image_path, save_image_path, source_key, target_bucket, size)
+               thumbnail_sizes_created.add(size)
         logging.info("created thumbnails")
             # Send notification to SNS
         # sns_topic_arn = 'arn:aws:sns:eu-west-3:251251521134:image-processor-sns-topic'
@@ -64,6 +70,13 @@ def lambda_handler(event, context):
              'statusCode': 200,
               'body': 'Thumbnails created and uploaded successfully'
         }
+
+def downloaded_image_size(image_path):
+    with Image.open(image_path) as img:
+        return img.size
+
+
+
 def create_folder_if_not_exists_for_local(folder_path):
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
