@@ -1,0 +1,105 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  image-processor
+
+  Sample SAM Template for image-processor
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 516
+
+Resources:
+  ImageProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: image-processor/
+      Handler: app.lambda_handler
+      Runtime: python3.9
+      Architectures:
+        - x86_64
+      Role: !GetAtt ImageProcessorRole.Arn
+
+  ImageProcessorRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      RoleName: "image-processor-function-dev-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "lambda.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Path: "/"
+      Policies:
+        - PolicyName: "image-processor-function-policy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "s3:GetObject"
+                  - "s3:PutObject"
+                  -  logs:CreateLogStream
+                  -  logs:PutLogEvents
+                Resource: "*"
+
+  ImageProcessorFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${ImageProcessorFunction}"
+      RetentionInDays: 7
+
+  ApplicationResourceGroup:
+    Type: AWS::ResourceGroups::Group
+    Properties:
+      Name:
+        Fn::Sub: ApplicationInsights-SAM-${AWS::StackName}
+      ResourceQuery:
+        Type: CLOUDFORMATION_STACK_1_0
+
+  ImageProcessorBucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: "test.image.processor.dev"
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: "s3:ObjectCreated:*"
+            Function: !GetAtt ImageProcessorFunction.Arn
+
+  TargetImageProcessorBucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: "test.target.image.processor.dev"
+
+  ImageProcessorBucketEventPermission:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      FunctionName: !GetAtt ImageProcessorFunction.Arn
+      Action: "lambda:InvokeFunction"
+      Principal: "s3.amazonaws.com"
+      SourceArn: "arn:aws:s3:::test.image.processor.dev"
+
+  ImageProcessorSNSTopic:
+    Type: "AWS::SNS::Topic"
+    Properties:
+      TopicName: "image-processor-sns-topic"
+
+  ImageProcessorSQSQueue:
+    Type: "AWS::SQS::Queue"
+    Properties:
+      QueueName: "image-processor-sqs-queue"
+
+  ImageProcessorTopicSubscription:
+    Type: "AWS::SNS::Subscription"
+    Properties:
+      TopicArn: !Ref ImageProcessorSNSTopic
+      Protocol: "sqs"
+      Endpoint: !GetAtt ImageProcessorSQSQueue.Arn
+
+Outputs:
+  ImageProcessorFunction:
+    Description: Image Processor Lambda Function ARN
+    Value: !GetAtt ImageProcessorFunction.Arn
