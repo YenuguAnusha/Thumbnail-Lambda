@@ -1,13 +1,14 @@
 import boto3
 import os
-import logging
-import tempfile
 import json
+import logging
 from PIL import Image
 import urllib.parse
+import imghdr
+
 
 s3_client = boto3.client('s3')
-#sns_client = boto3.client('sns')
+sns_client = boto3.client('sns')
 
 logging.getLogger().setLevel(logging.INFO)
 
@@ -49,27 +50,41 @@ def lambda_handler(event, context):
             logging.info("saved in local path "+ save_image_path)
 
             if width > size and height > size:
+                # Create the thumbnail
+              thumbnail_width, thumbnail_height, thumbnail_content_type, thumbnail_memory_size = create_thumbnail(
+                    image_path, save_image_path, source_key, target_bucket, size)
+              thumbnail_sizes_created.add(size)
 
-        # Create the thumbnail
-               create_thumbnail(image_path, save_image_path, source_key, target_bucket, size)
-               thumbnail_sizes_created.add(size)
+              send_sns_notification(file_id, thumbnail_width, thumbnail_height, size, thumbnail_memory_size,thumbnail_content_type)
+
         logging.info("created thumbnails")
-            # Send notification to SNS
-        # sns_topic_arn = 'arn:aws:sns:eu-west-3:251251521134:image-processor-sns-topic'
-        # message = {
-        #     'file_id': file_id,
-        #     'bucket': target_bucket,
-        #     'sizes': list(thumbnail_sizes)  # Convert set to a list for JSON serialization
-        #             }
-        # sns_client.publish(
-        #     TopicArn=sns_topic_arn,
-        #     Message=json.dumps(message)
-        # )
 
         return {
              'statusCode': 200,
               'body': 'Thumbnails created and uploaded successfully'
         }
+
+def send_sns_notification(file_id, width, height, size, memory_size, content_type):
+    sns = boto3.client('sns', region_name = "eu-west-3")
+    message = {
+        'file_id': file_id,
+        'width': width,
+        'height': height,
+        'size': size,
+        'memory_size': memory_size,
+        'content_type': content_type
+    }
+
+    response = sns.publish(
+        TopicArn='arn:aws:sns:eu-west-3:251251521134:image-processor-sns-topic',
+        Message=json.dumps(message)
+    )
+
+    if response['ResponseMetadata']['HTTPStatusCode'] == 200:
+        logging.info('SNS notification sent successfully.')
+    else:
+        logging.error('Failed to send SNS notification.')
+
 
 def downloaded_image_size(image_path):
     with Image.open(image_path) as img:
@@ -107,7 +122,14 @@ def create_thumbnail(image_path, save_image_path,  source_key, target_bucket, si
         image.save(save_image_path)
         logging.info("created paths to upload the image: "+thumbnail_path)
         upload_to_s3(save_image_path, target_bucket, thumbnail_path)
-        logging.info("Image uploaded to " + thumbnail_path )
+        logging.info("Image uploaded to " + thumbnail_path)
+
+        thumbnail_width, thumbnail_height = image.size
+        thumbnail_content_type = imghdr.what(None, h=open(save_image_path, 'rb').read())
+        thumbnail_memory_size = os.stat(save_image_path).st_size
+
+        return thumbnail_width, thumbnail_height, thumbnail_content_type, thumbnail_memory_size
+
 
 
 def upload_to_s3(file_path, target_bucket_name, uploaded_key):

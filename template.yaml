@@ -44,6 +44,7 @@ Resources:
                   - "s3:PutObject"
                   -  logs:CreateLogStream
                   -  logs:PutLogEvents
+                  -  sns:publish
                 Resource: "*"
 
   ImageProcessorFunctionLogGroup:
@@ -95,9 +96,28 @@ Resources:
   ImageProcessorTopicSubscription:
     Type: "AWS::SNS::Subscription"
     Properties:
-      TopicArn: !Ref ImageProcessorSNSTopic
-      Protocol: "sqs"
       Endpoint: !GetAtt ImageProcessorSQSQueue.Arn
+      Protocol: "sqs"
+      TopicArn: !Ref ImageProcessorSNSTopic
+
+  ImageProcessorSNSToImageProcessorSQSPermission:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref ImageProcessorSQSQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: "*"
+            Action:
+              - SQS:SendMessage
+            Resource:
+              - !GetAtt ImageProcessorSQSQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !Ref ImageProcessorSNSTopic
 
 Outputs:
   ImageProcessorFunction:
