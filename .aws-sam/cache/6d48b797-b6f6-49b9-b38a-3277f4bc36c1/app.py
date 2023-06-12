@@ -55,7 +55,7 @@ def lambda_handler(event, context):
                     image_path, save_image_path, source_key, target_bucket, size)
               thumbnail_sizes_created.add(size)
 
-              send_sns_notification(file_id, thumbnail_width, thumbnail_height, size, thumbnail_memory_size,thumbnail_content_type)
+              send_sns_notification(file_id, size, thumbnail_content_type,thumbnail_memory_size,thumbnail_width, thumbnail_height)
 
         logging.info("created thumbnails")
 
@@ -64,15 +64,15 @@ def lambda_handler(event, context):
               'body': 'Thumbnails created and uploaded successfully'
         }
 
-def send_sns_notification(file_id, width, height, size, memory_size, content_type):
+def send_sns_notification(file_id, size, content_type, memory_size, width, height):
     sns = boto3.client('sns', region_name = "eu-west-3")
     message = {
         'file_id': file_id,
-        'width': width,
-        'height': height,
         'size': size,
+        'content_type': content_type,
         'memory_size': memory_size,
-        'content_type': content_type
+        'width': width,
+        'height': height
     }
 
     response = sns.publish(
