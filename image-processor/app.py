@@ -45,7 +45,6 @@ def lambda_handler(event, context):
 
         # Create thumbnails for each size
         for size in thumbnail_sizes:
-                    # Generate the thumbnail file name
             save_image_path = save_image(size,file_id)
             logging.info("saved in local path "+ save_image_path)
 
@@ -110,7 +109,6 @@ def create_folder_if_not_exists(bucket_name, folder_name):
 
 def get_thumbnail_path(source_key, size, target_bucket):
     folder_name = str(size)
-
     create_folder_if_not_exists(target_bucket, folder_name)
 
     return f"{folder_name}/{source_key}"
@@ -120,7 +118,6 @@ def create_thumbnail(image_path, save_image_path,  source_key, target_bucket, si
         image.thumbnail((size, size))
         thumbnail_path = get_thumbnail_path(source_key, size, target_bucket)
         image.save(save_image_path)
-        logging.info("created paths to upload the image: "+thumbnail_path)
         upload_to_s3(save_image_path, target_bucket, thumbnail_path)
         logging.info("Image uploaded to " + thumbnail_path)
 
